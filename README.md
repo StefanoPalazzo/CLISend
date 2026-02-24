@@ -2,7 +2,7 @@
 
 Clisend es un sistema cliente-servidor rápido y asíncrono diseñado para la transferencia de archivos de manera local o remota. Está construido en Python utilizando **AsyncIO** para gestionar múltiples conexiones concurrentes sin bloqueo y **Multiprocessing** (mediante Workers) para delegar las operaciones pesadas de disco y base de datos.
 
-![Arquitectura](./docs/architecture.jpg)
+![Arquitectura](./docs/Architecture.jpg)
 
 ## Características
 - **Concurrencia:** Emplea de manera nativa la librería `asyncio`.
