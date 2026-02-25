@@ -52,9 +52,7 @@ shared_folder_path = ""
 db_path_file = ""
 
 
-# ─────────────────────────────────────────────
-#  Manejo de Workers (Procesos)
-# ─────────────────────────────────────────────
+#  Manejo de Workers
 
 def start_workers():
     global workers_procs
@@ -109,9 +107,7 @@ def stop_workers():
     logging.info("Todos los Workers detenidos.")
 
 
-# ─────────────────────────────────────────────
-#  Comunicación con Workers (AsyncIO <-> Queue)
-# ─────────────────────────────────────────────
+#  Comunicación con Workers
 
 async def send_to_worker(queue_req, queue_resp, request: dict) -> dict:
     req_id = str(uuid.uuid4())
@@ -121,10 +117,8 @@ async def send_to_worker(queue_req, queue_resp, request: dict) -> dict:
     future = loop.create_future()
     pending_requests[req_id] = (future, queue_resp)
 
-    # Put es bloqueante por debajo, usamos executor
     await loop.run_in_executor(executor, queue_req.put, request)
 
-    # Esperamos que el poller resuelva el future
     result = await future
     del pending_requests[req_id]
     return result
@@ -278,7 +272,6 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 log_event(client_name, client_ip, client_port, "DELETE", path, result["status"])
 
             elif action == "CUT":
-                # Cortar = Descargar + Borrar atómicamente
                 result = await send_to_worker(
                     write_request_q, write_response_q,
                     {"action": "CUT", "path": path}
@@ -352,7 +345,7 @@ def main():
     parser = argparse.ArgumentParser(description="Clisend Server Funcional")
     parser.add_argument("-p", "--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("-f", "--folder", type=str, default=DEFAULT_FOLDER)
-    parser.add_argument("--host", type=str, default="0.0.0.0")
+    parser.add_argument("--host", type=str, default=None)
     parser.add_argument("--db", type=str, default=DEFAULT_DB)
     args = parser.parse_args()
 
@@ -364,7 +357,7 @@ def main():
     # El SO limpia los hijos zombies
     signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
-    # Manejo de apagado (usado por Ctrl+C y kill)
+    # Manejo de apagado
     def shutdown_handler(sig, frame):
         logging.info("\nSeñal de apagado recibida. Cerrando servidor...")
         stop_workers()
