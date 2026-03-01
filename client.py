@@ -22,6 +22,11 @@ import os
 import socket
 import sys
 
+try:
+    import readline
+except ImportError:
+    pass  # Autocomplete not available on Windows without pyreadline
+
 from protocol import send_message, recv_message, send_file_data, recv_file_data, recv_exact
 
 
@@ -59,6 +64,54 @@ def print_entries(entries: list):
         display_name = f"{name}/" if is_dir else name
         print(f"  {display_name:<35} {tipo:<10} {size_str:<15}")
 
+
+class ClisendCompleter:
+    def __init__(self):
+        self.options = ["ls ", "cp ", "put ", "rm ", "cut ", "cat ", "help", "exit"]
+        self.remote_files = []
+        
+    def update_remote_files(self, entries):
+        """Actualiza la caché local de archivos para autocompletado basándose en un 'ls'."""
+        self.remote_files = []
+        for e in entries:
+            name = e["name"]
+            if e.get("is_dir"):
+                self.remote_files.append(name + "/")
+            else:
+                self.remote_files.append(name)
+
+    def complete(self, text, state):
+        line = readline.get_line_buffer()
+        
+        # Si estamos escribiendo el comando principal
+        if " " not in line:
+            matches = [cmd for cmd in self.options if cmd.startswith(text)]
+            return matches[state] if state < len(matches) else None
+            
+        # Si ya escribimos un comando y estamos autocompletando el argumento (nombre de archivo)
+        parts = line.split(" ", 1)
+        cmd = parts[0]
+        arg = parts[1] if len(parts) > 1 else ""
+        
+        # Comandos que operan sobre archivos remotos
+        if cmd in ("cp", "rm", "cut", "cat", "download", "get", "delete"):
+            matches = [f for f in self.remote_files if f.startswith(text)]
+            return matches[state] if state < len(matches) else None
+            
+        # Comandos que operan sobre archivos locales
+        if cmd in ("put", "upload", "up"):
+            # Autocompletado local básico
+            import glob
+            if not text:
+                matches = glob.glob("*")
+            else:
+                matches = glob.glob(text + "*")
+            
+            # Añadir barra a directorios
+            matches = [m + "/" if os.path.isdir(m) else m for m in matches]
+            return matches[state] if state < len(matches) else None
+            
+        return None
 
 def print_help():
     """Muestra los comandos disponibles."""
@@ -126,6 +179,13 @@ def main():
         sys.exit(1)
 
     print_help()
+    
+    completer = ClisendCompleter()
+    if 'readline' in sys.modules:
+        readline.set_completer(completer.complete)
+        readline.parse_and_bind('tab: complete')
+        # Separadores de palabras. Quitamos '/' para que el nombre del dir se autocomplete entero
+        readline.set_completer_delims(' \t\n`~!@#$%^&*()-=+[{]}\\|;:\'",<>?')
 
     try:
         while True:
@@ -148,7 +208,10 @@ def main():
                 resp = recv_message(sock)
                 if resp and resp["status"] == "ok":
                     print(f"\n  Contenido de '{path}':")
-                    print_entries(resp.get("entries", []))
+                    entries = resp.get("entries", [])
+                    print_entries(entries)
+                    if path == "/":
+                        completer.update_remote_files(entries)
                     print()
                 else:
                     print(f"  [!] {resp.get('message', 'Error desconocido')}")
