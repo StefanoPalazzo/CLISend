@@ -14,6 +14,9 @@ import signal
 import logging
 from multiprocessing import Queue
 
+MAX_CAT_SIZE = 4096  # Max bytes to return for a CAT command
+
+
 
 def _list_files(shared_folder: str, rel_path: str) -> dict:
     """Lista archivos y carpetas en una ruta relativa dentro de la carpeta compartida."""
@@ -70,6 +73,44 @@ def _read_file(shared_folder: str, rel_path: str) -> dict:
         return {"status": "error", "message": str(e)}
 
 
+def _cat_file(shared_folder: str, rel_path: str) -> dict:
+    """Lee un extracto de un archivo de texto para previsualización."""
+    rel_path = rel_path.lstrip("/")
+    target = os.path.normpath(os.path.join(shared_folder, rel_path))
+
+    # Protección contra path traversal
+    if not os.path.realpath(target).startswith(os.path.realpath(shared_folder)):
+        return {"status": "error", "message": "Ruta no permitida"}
+
+    if not os.path.isfile(target):
+        return {"status": "error", "message": f"Archivo no encontrado: {rel_path}"}
+
+    try:
+        size = os.path.getsize(target)
+        read_size = min(size, MAX_CAT_SIZE)
+        
+        with open(target, "rb") as f:
+            data = f.read(read_size)
+            
+        # Intentar decodificar para asegurar que es texto y no binario
+        try:
+            text = data.decode('utf-8')
+        except UnicodeDecodeError:
+            return {"status": "error", "message": "El archivo parece ser binario y no se puede imprimir."}
+            
+        if size > MAX_CAT_SIZE:
+            text += f"\n\n[... Archivo muy grande, mostrando primeros {MAX_CAT_SIZE} bytes ...]"
+            
+        return {
+            "status": "ok",
+            "text": text,
+            "path": rel_path,
+        }
+    except PermissionError:
+        return {"status": "error", "message": f"Permiso denegado: {rel_path}"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 def reader_worker(request_queue: Queue, response_queue: Queue, shared_folder: str):
     """
     Proceso principal del Worker de Lectura.
@@ -98,6 +139,8 @@ def reader_worker(request_queue: Queue, response_queue: Queue, shared_folder: st
                     result = _list_files(shared_folder, path)
                 elif action == "DOWNLOAD":
                     result = _read_file(shared_folder, path)
+                elif action == "CAT":
+                    result = _cat_file(shared_folder, path)
                 else:
                     result = {"status": "error", "message": f"Acción desconocida: {action}"}
             except Exception as e:

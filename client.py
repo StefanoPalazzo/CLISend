@@ -71,6 +71,7 @@ def print_help():
 ║  put <archivo>     Subir archivo local al host        ║
 ║  rm <archivo>      Eliminar archivo del host          ║
 ║  cut <archivo>     Cortar archivo del host a tu PC    ║
+║  cat <archivo>     Ver contenido (texto) del host     ║
 ║  help              Mostrar esta ayuda                 ║
 ║  exit              Desconectarse                      ║
 ╚═══════════════════════════════════════════════════════╝
@@ -222,6 +223,20 @@ def main():
                     recv_file_data(sock, file_size, dest,
                                    progress_callback=print_progress)
                     print(f"\n  [+] Movido a: {dest}")
+                else:
+                    print(f"  [!] {resp.get('message', 'Error')}")
+
+            # ── CAT ──
+            elif cmd == "cat":
+                if not arg:
+                    print("  [!] Uso: cat <archivo>")
+                    continue
+                send_message(sock, {"action": "CAT", "path": arg})
+                resp = recv_message(sock)
+                if resp and resp["status"] == "ok":
+                    print(f"\n--- Contenido de {arg} ---")
+                    print(resp.get("text", ""))
+                    print("---------------------------\n")
                 else:
                     print(f"  [!] {resp.get('message', 'Error')}")
 

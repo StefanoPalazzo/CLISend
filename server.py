@@ -241,6 +241,19 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                     })
                 log_event(client_name, client_ip, client_port, "DOWNLOAD", path, result["status"])
 
+            elif action == "CAT":
+                result = await send_to_worker(
+                    read_request_q, read_response_q,
+                    {"action": "CAT", "path": path}
+                )
+                await async_send_message(writer, {
+                    "status": result["status"],
+                    "action": "CAT",
+                    "text": result.get("text", ""),
+                    "message": result.get("message", ""),
+                })
+                log_event(client_name, client_ip, client_port, "CAT", path, result["status"])
+
             elif action == "UPLOAD":
                 file_size = msg.get("size", 0)
                 await async_send_message(writer, {"status": "ready", "action": "UPLOAD"})
