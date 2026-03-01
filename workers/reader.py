@@ -13,6 +13,7 @@ import os
 import signal
 import logging
 from multiprocessing import Queue
+from concurrent.futures import ThreadPoolExecutor
 
 MAX_CAT_SIZE = 4096  # Max bytes to return for a CAT command
 
@@ -111,17 +112,42 @@ def _cat_file(shared_folder: str, rel_path: str) -> dict:
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+def _process_request(request: dict, response_queue: Queue, shared_folder: str):
+    """Procesa una única petición y envía la respuesta a la cola."""
+    req_id = request.get("id")
+    action = request.get("action", "").upper()
+    path = request.get("path", "/")
+
+    try:
+        if action == "LIST":
+            result = _list_files(shared_folder, path)
+        elif action == "DOWNLOAD":
+            result = _read_file(shared_folder, path)
+        elif action == "CAT":
+            result = _cat_file(shared_folder, path)
+        else:
+            result = {"status": "error", "message": f"Acción desconocida: {action}"}
+    except Exception as e:
+        result = {"status": "error", "message": f"Error interno: {e}"}
+
+    result["id"] = req_id
+    result["action"] = action
+    response_queue.put(result)
+
+
 def reader_worker(request_queue: Queue, response_queue: Queue, shared_folder: str):
     """
     Proceso principal del Worker de Lectura.
-    Lee peticiones de request_queue, las procesa, y pone resultados en response_queue.
-    Se detiene al recibir None.
+    Usa un ThreadPoolExecutor internamente para procesar múltiples lecturas en paralelo,
+    evitando que un archivo grande bloquee a otros clientes que solicitan un LIST o archivos pequeños.
     """
-    # Ignorar SIGINT para que solo el padre maneje Ctrl+C (evita zombies)
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
     shared_folder = os.path.abspath(shared_folder)
     logging.info(f"[READER] Iniciado. Carpeta: {shared_folder}")
+
+    # Pool de hilos para concurrencia de lectura
+    executor = ThreadPoolExecutor(max_workers=10)
 
     try:
         while True:
@@ -129,26 +155,10 @@ def reader_worker(request_queue: Queue, response_queue: Queue, shared_folder: st
 
             if request is None:
                 break
-
-            req_id = request.get("id")
-            action = request.get("action", "").upper()
-            path = request.get("path", "/")
-
-            try:
-                if action == "LIST":
-                    result = _list_files(shared_folder, path)
-                elif action == "DOWNLOAD":
-                    result = _read_file(shared_folder, path)
-                elif action == "CAT":
-                    result = _cat_file(shared_folder, path)
-                else:
-                    result = {"status": "error", "message": f"Acción desconocida: {action}"}
-            except Exception as e:
-                result = {"status": "error", "message": f"Error interno: {e}"}
-
-            result["id"] = req_id
-            result["action"] = action
-            response_queue.put(result)
+                
+            # Despacha el trabajo al pool de hilos en lugar de procesarlo sincrónicamente
+            executor.submit(_process_request, request, response_queue, shared_folder)
 
     finally:
+        executor.shutdown(wait=False)
         logging.info("[READER] Detenido.")
