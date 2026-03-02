@@ -52,8 +52,8 @@ def print_entries(entries: list):
         print("  (carpeta vacía)")
         return
 
-    print(f"  {'Nombre':<50} {'Tipo':<10} {'Tamaño':<15}")
-    print(f"  {'─'*50} {'─'*10} {'─'*15}")
+    print(f"  {'Nombre':<35} {'Tipo':<10} {'Tamaño':<15}")
+    print(f"  {'─'*35} {'─'*10} {'─'*15}")
     for entry in entries:
         name = entry["name"]
         is_dir = entry.get("is_dir", False)
@@ -62,7 +62,7 @@ def print_entries(entries: list):
         tipo = "📁 DIR" if is_dir else "📄 FILE"
         size_str = "" if is_dir else format_size(size)
         display_name = f"{name}/" if is_dir else name
-        print(f"  {display_name:<50} {tipo:<10} {size_str:<15}")
+        print(f"  {display_name:<35} {tipo:<10} {size_str:<15}")
 
 
 class ClisendCompleter:
