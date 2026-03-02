@@ -147,7 +147,7 @@ def reader_worker(request_queue: Queue, response_queue: Queue, shared_folder: st
     logging.info(f"[READER] Iniciado. Carpeta: {shared_folder}")
 
     # Pool de hilos para concurrencia de lectura
-    executor = ThreadPoolExecutor(max_workers=10)
+    executor = ThreadPoolExecutor(max_workers=5)
 
     try:
         while True:

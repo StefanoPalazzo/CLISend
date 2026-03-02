@@ -183,7 +183,13 @@ def main():
     completer = ClisendCompleter()
     if 'readline' in sys.modules:
         readline.set_completer(completer.complete)
-        readline.parse_and_bind('tab: complete')
+        
+        # Compatibilidad con macOS (libedit) vs Linux (GNU readline)
+        if "libedit" in readline.__doc__:
+            readline.parse_and_bind("bind ^I rl_complete")
+        else:
+            readline.parse_and_bind("tab: complete")
+            
         # Separadores de palabras. Quitamos '/' para que el nombre del dir se autocomplete entero
         readline.set_completer_delims(' \t\n`~!@#$%^&*()-=+[{]}\\|;:\'",<>?')
 
