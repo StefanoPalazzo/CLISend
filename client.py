@@ -233,6 +233,16 @@ def main():
                     file_size = resp["size"]
                     filename = os.path.basename(resp["path"])
                     dest = os.path.join(download_dir, filename)
+
+                    # Renombrado automático si hay conflicto local
+                    if os.path.exists(dest):
+                        base, ext = os.path.splitext(dest)
+                        counter = 1
+                        while os.path.exists(f"{base} ({counter}){ext}"):
+                            counter += 1
+                        dest = f"{base} ({counter}){ext}"
+                        filename = os.path.basename(dest)
+
                     print(f"  Descargando '{filename}' ({format_size(file_size)})...")
                     recv_file_data(sock, file_size, dest,
                                    progress_callback=print_progress)

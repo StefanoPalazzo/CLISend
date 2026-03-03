@@ -21,6 +21,20 @@ import logging
 from multiprocessing import Queue
 
 
+def _get_unique_path(target: str) -> str:
+    """Si el archivo existe, busca un nombre libre añadiendo (1), (2), etc."""
+    if not os.path.exists(target):
+        return target
+    
+    base, ext = os.path.splitext(target)
+    counter = 1
+    while True:
+        new_target = f"{base} ({counter}){ext}"
+        if not os.path.exists(new_target):
+            return new_target
+        counter += 1
+
+
 def _save_file(shared_folder: str, rel_path: str, data: bytes) -> dict:
     """Guarda bytes en un archivo dentro de la carpeta compartida."""
     rel_path = rel_path.lstrip("/")
@@ -28,6 +42,10 @@ def _save_file(shared_folder: str, rel_path: str, data: bytes) -> dict:
 
     if not os.path.realpath(target).startswith(os.path.realpath(shared_folder)):
         return {"status": "error", "message": "Ruta no permitida"}
+
+    # Renombrado automático si hay conflicto
+    target = _get_unique_path(target)
+    final_rel_path = os.path.relpath(target, shared_folder)
 
     # Crear directorios intermedios si no existen
     target_dir = os.path.dirname(target)
@@ -39,10 +57,10 @@ def _save_file(shared_folder: str, rel_path: str, data: bytes) -> dict:
             f.write(data)
         return {
             "status": "ok",
-            "message": f"Archivo guardado: {rel_path} ({len(data)} bytes)",
+            "message": f"Archivo guardado: {final_rel_path} ({len(data)} bytes)",
         }
     except PermissionError:
-        return {"status": "error", "message": f"Permiso denegado: {rel_path}"}
+        return {"status": "error", "message": f"Permiso denegado: {final_rel_path}"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
