@@ -1,49 +1,86 @@
 # Clisend
 
-Clisend es un sistema cliente-servidor rápido y asíncrono diseñado para la transferencia de archivos de manera local o remota. Está construido en Python utilizando **AsyncIO** para gestionar múltiples conexiones concurrentes sin bloqueo y **Multiprocessing** (mediante Workers) para delegar las operaciones pesadas de disco y base de datos.
+Clisend is an educational client-server file-transfer system written in Python.
+It combines `asyncio` for concurrent TCP connections with dedicated worker
+processes for filesystem operations and SQLite event logging.
 
-![Arquitectura](./docs/Architecture.jpg)
+![Architecture](./docs/Architecture.jpg)
 
-## Características
-- **Concurrencia:** Emplea de manera nativa la librería `asyncio`.
-- **Workers Dedicados:** Subprocesos separados para lectura (`reader.py`), escritura (`writer.py`) y registro (`logger.py`).
-- **Protocolo Personalizado:** Transferencias seguras sobre TCP usando un tamaño predefinido (Length-Prefix) y cuerpos JSON.
-- **Log de Transferencias:** Registra automáticamente los eventos a través de SQLite (`logs.db`).
+## Architecture
 
-## Cómo ejecutarlo
+The TCP server accepts multiple clients and exchanges length-prefixed JSON
+control messages followed by raw file bytes when required. Read requests are
+delegated to a worker with a thread pool, write operations are serialized by a
+dedicated worker, and a logger worker persists transfer events in SQLite.
 
-### 1. Iniciar el Servidor
-Por defecto, el servidor se levanta en el puerto `65432` y comparte la carpeta actual (`.`).
+The length prefix provides reliable message framing over TCP. It does **not**
+provide encryption, authentication, authorization, or message integrity.
+
+## Features
+
+- Concurrent client handling with `asyncio`.
+- Separate reader, writer, and logger worker processes.
+- Length-prefixed JSON protocol for commands and metadata.
+- Upload, download, listing, preview, delete, and cut operations.
+- Filesystem containment within a configured shared directory.
+- Transfer-event logging in SQLite (`logs.db`).
+
+## Run the server
+
+By default, the server listens on port `65432` and shares the current directory.
+
 ```bash
 python3 server.py
 ```
 
-*Opciones extras del servidor:*
-- `-p` o `--port`: Modifica el puerto (ej. `python3 server.py -p 8080`).
-- `-f` o `--folder`: Ruta de la carpeta a compartir con los clientes.
-- `--db`: Archivo SQLite para el registro de logs (por defecto `logs.db`).
+Server options:
 
-### 2. Iniciar el Cliente
-Para conectarte basta con invocar el script seguido de tu nombre o alias.
+- `-p`, `--port`: change the listening port.
+- `-f`, `--folder`: choose the shared directory.
+- `--host`: choose the listening interface.
+- `--db`: choose the SQLite log database path.
+
+## Run a client
+
+The positional argument is a display name used in logs; it is not an
+authenticated identity.
+
 ```bash
-python3 client.py "Usuario"
+python3 client.py "User"
 ```
 
-*Opciones extras del cliente:*
-- `--host`: La IP del servidor si no corre localmente (ej. `--host 192.168.1.100`).
-- `-p` o `--port`: Modifica el puerto para igualar al servidor.
-- `-d` o `--download-dir`: Carpeta donde irán a parar tus descargas (por defecto `downloads/`).
+Client options:
 
----
+- `--host`: server IP address or hostname.
+- `-p`, `--port`: server port.
+- `-d`, `--download-dir`: local destination for downloaded files.
 
-## Comandos del Cliente
+## Client commands
 
-Tras conectar y ser autenticado, podrás tipear los siguientes comandos en la terminal:
+- `ls [path]`: list files and directories.
+- `cp <file>`: download a file.
+- `put <local_file>`: upload a file.
+- `rm <file>`: permanently delete a remote file.
+- `cut <file>`: download and then delete a remote file.
+- `help`: show available commands.
+- `exit`: disconnect.
 
-- `ls [ruta]`: Lista el contenido de la carpeta compartida en el servidor.
-- `cp <archivo>`: Descarga un archivo a tu carpeta de descargas.
-- `put <archivo_local>`: Sube uno de tus archivos locales al servidor.
-- `rm <archivo>`: Elimina un archivo permanentemente del servidor.
-- `cut <archivo>`: Corta el archivo (lo descarga y luego lo elimina del servidor).
-- `help`: Imprime la lista completa de comandos disponibles.
-- `exit`: Para desconectarte.
+## Security model
+
+Clisend is intended for learning and for use on a local machine or trusted
+network. It assumes that clients and the network are trusted. The server keeps
+requested filesystem paths inside the configured shared directory, but it does
+not authenticate clients or grant per-user permissions.
+
+Do not expose the server directly to the public Internet or use it to transfer
+sensitive files without adding a secure transport and an authentication and
+authorization layer.
+
+## Current limitations
+
+- TCP traffic is not encrypted with TLS.
+- Client display names are not authenticated identities.
+- All connected clients have the same file permissions.
+- Some transfers are buffered entirely in memory.
+- Message and upload size limits are not yet enforced.
+- The multiprocessing setup uses `fork` and therefore targets Unix-like systems.

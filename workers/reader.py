@@ -15,6 +15,8 @@ import logging
 from multiprocessing import Queue
 from concurrent.futures import ThreadPoolExecutor
 
+from workers.paths import resolve_shared_path
+
 MAX_CAT_SIZE = 4096  # Max bytes to return for a CAT command
 
 
@@ -24,10 +26,9 @@ def _list_files(shared_folder: str, rel_path: str) -> dict:
     if rel_path in ("/", "", "."):
         rel_path = ""
     rel_path = rel_path.lstrip("/")
-    target = os.path.normpath(os.path.join(shared_folder, rel_path))
-
-    # Protección contra path traversal (../../etc/passwd)
-    if not os.path.realpath(target).startswith(os.path.realpath(shared_folder)):
+    try:
+        target = resolve_shared_path(shared_folder, rel_path, allow_root=True)
+    except ValueError:
         return {"status": "error", "message": "Ruta no permitida"}
 
     if not os.path.isdir(target):
@@ -49,10 +50,9 @@ def _list_files(shared_folder: str, rel_path: str) -> dict:
 def _read_file(shared_folder: str, rel_path: str) -> dict:
     """Lee un archivo y devuelve su contenido como bytes."""
     rel_path = rel_path.lstrip("/")
-    target = os.path.normpath(os.path.join(shared_folder, rel_path))
-
-    # Protección contra path traversal
-    if not os.path.realpath(target).startswith(os.path.realpath(shared_folder)):
+    try:
+        target = resolve_shared_path(shared_folder, rel_path)
+    except ValueError:
         return {"status": "error", "message": "Ruta no permitida"}
 
     if not os.path.isfile(target):
@@ -77,10 +77,9 @@ def _read_file(shared_folder: str, rel_path: str) -> dict:
 def _cat_file(shared_folder: str, rel_path: str) -> dict:
     """Lee un extracto de un archivo de texto para previsualización."""
     rel_path = rel_path.lstrip("/")
-    target = os.path.normpath(os.path.join(shared_folder, rel_path))
-
-    # Protección contra path traversal
-    if not os.path.realpath(target).startswith(os.path.realpath(shared_folder)):
+    try:
+        target = resolve_shared_path(shared_folder, rel_path)
+    except ValueError:
         return {"status": "error", "message": "Ruta no permitida"}
 
     if not os.path.isfile(target):

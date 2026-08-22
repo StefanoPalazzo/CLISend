@@ -20,6 +20,8 @@ import signal
 import logging
 from multiprocessing import Queue
 
+from workers.paths import resolve_shared_path
+
 
 def _get_unique_path(target: str) -> str:
     """Si el archivo existe, busca un nombre libre añadiendo (1), (2), etc."""
@@ -38,9 +40,9 @@ def _get_unique_path(target: str) -> str:
 def _save_file(shared_folder: str, rel_path: str, data: bytes) -> dict:
     """Guarda bytes en un archivo dentro de la carpeta compartida."""
     rel_path = rel_path.lstrip("/")
-    target = os.path.normpath(os.path.join(shared_folder, rel_path))
-
-    if not os.path.realpath(target).startswith(os.path.realpath(shared_folder)):
+    try:
+        target = resolve_shared_path(shared_folder, rel_path)
+    except ValueError:
         return {"status": "error", "message": "Ruta no permitida"}
 
     # Renombrado automático si hay conflicto
@@ -68,9 +70,9 @@ def _save_file(shared_folder: str, rel_path: str, data: bytes) -> dict:
 def _delete_file(shared_folder: str, rel_path: str) -> dict:
     """Elimina un archivo de la carpeta compartida."""
     rel_path = rel_path.lstrip("/")
-    target = os.path.normpath(os.path.join(shared_folder, rel_path))
-
-    if not os.path.realpath(target).startswith(os.path.realpath(shared_folder)):
+    try:
+        target = resolve_shared_path(shared_folder, rel_path)
+    except ValueError:
         return {"status": "error", "message": "Ruta no permitida"}
 
     if not os.path.exists(target):
@@ -96,9 +98,9 @@ def _cut_file(shared_folder: str, rel_path: str) -> dict:
     evitando que otro cliente vea el archivo a medio borrar.
     """
     rel_path = rel_path.lstrip("/")
-    target = os.path.normpath(os.path.join(shared_folder, rel_path))
-
-    if not os.path.realpath(target).startswith(os.path.realpath(shared_folder)):
+    try:
+        target = resolve_shared_path(shared_folder, rel_path)
+    except ValueError:
         return {"status": "error", "message": "Ruta no permitida"}
 
     if not os.path.isfile(target):
