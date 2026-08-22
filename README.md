@@ -1,5 +1,7 @@
 # Clisend
 
+**English** | [Español](README.es.md)
+
 Clisend is an educational client-server file-transfer system written in Python.
 It combines `asyncio` for concurrent TCP connections with dedicated worker
 processes for filesystem operations and SQLite event logging.
